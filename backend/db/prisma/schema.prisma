@@ -20,13 +20,13 @@ model User {
    password String
    firstname String
    lastname String 
-   Account Account?
+   Account Account? @relation
 
 }
 model Account {
   id Int @id @default(autoincrement())
-  Balance Int
+  balance Int 
   UserId Int @unique
-  Handler User @relation(fields: [UserId],references: [id])
+  User User @relation(fields: [UserId],references: [id])
    
 }

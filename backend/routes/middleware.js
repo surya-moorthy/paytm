@@ -8,11 +8,13 @@ const authmiddleware = (req,res,next) =>{
     }
  
     const token = header.split(' ')[1]
+    console.log(header)
+    console.log(typeof token)
     console.log(token)
     try {
         const verifytoken = jwt.verify(token,JWT_PASSWORD);
         console.log(verifytoken);
-        req.userId = verifytoken.userId;
+        req.userId = verifytoken.user;    
         next()
     }catch(e){
         res.status(403).json({

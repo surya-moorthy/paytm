@@ -3,9 +3,10 @@ const jwt = require('jsonwebtoken');
 const { JWT_PASSWORD } = require('../config');
 const UserRouter = express.Router()
 const z = require('zod');
-const { User, Account } = require('../db/db');
 const bcrypt = require('bcrypt');
 const authmiddleware = require('./middleware');
+const { prisma } = require('./prisma');
+
 
 const SignupBody = z.object({
     username : z.string().email(),
@@ -23,8 +24,10 @@ UserRouter.post('/Signup',async (req,res)=>{
         })
     }
 
-    const finduser = await User.findOne({
-            username : req.body.username
+    const finduser = await prisma.user.findUnique({
+            where : {
+                username : req.body.username
+            }
     })
     if(finduser){
         return res.status(411).json({
@@ -32,28 +35,29 @@ UserRouter.post('/Signup',async (req,res)=>{
         })
     }
 
-   const user=  await User.create({
-        username : req.body.username,
-        password : req.body.password,
-        firstname: req.body.firstname,
-        lastname: req.body.lastname
+   const user=  await prisma.user.create({
+    data : {username : req.body.username,
+    password : req.body.password,
+    firstname: req.body.firstname,
+    lastname: req.body.lastname}
     })
 
 //6751884afb3d1e8a3032beb3
 
-    const createUser = await Account.create({
-        UserId: user._id,
-        balance:  1 + Math.random()*10000
+    const createAccount = await prisma.account.create({
+        data : {UserId: user.id,
+        balance:  1 + Math.random()*10000}
     })
     console.log(Math.random())
     
-    const userId = user._id
+    const userId = user.id
     const password = req.body.password
        const token = jwt.sign(password,JWT_PASSWORD);
        res.json({
         msg : "User created successfully",
         userId : userId,
         token : token  , 
+        
        
        })
 })
@@ -70,13 +74,15 @@ UserRouter.post('/Signin',(req,res)=>{
     }
     const user = req.body.username;
     const password = req.body.password;
-    const finduser = User.findOne({
-        username : user
+    const finduser = prisma.user.findUnique({
+        where : {
+            username : user
+        }
     })
     if(finduser){
         const token = jwt.sign(password,JWT_PASSWORD);
         res.status(200).json({
-            userID : finduser._id,
+            userID : finduser.id,
             token : token
             
         })
@@ -98,7 +104,14 @@ UserRouter.put('/',authmiddleware,async (req,res)=>{
             msg : "Invalid Inputs/Error while updating information"
         })
     }
-    await User.updateOne({_id:req.userId},req.body);
+    await prisma.user.updateMany({
+        where : {
+            id : req.userId,
+        },
+        data : {
+            ...req.body
+        }
+    })
 
     res.json({
         msg : "Updated successfully"
@@ -106,33 +119,42 @@ UserRouter.put('/',authmiddleware,async (req,res)=>{
 
 })
 
-UserRouter.get('/bulk',authmiddleware,(req,res)=>{
+UserRouter.get('/bulk',authmiddleware,async (req,res)=>{
      const username = req.query.filter;
-     const findUser = User.find({
-        $or : [
-            {firstname:{
-                $regex:username
-            }}
-        ], function(err,docs){
-            if(!err){
-                return docs;
-            }
-        }
-
-     })
-    res.status(200).json({
-            user : [
-                {
-                    firstname : findUser.firstname,
-                    lastname : findUser.lastname,
-                    _id : findUser._id,
-
+     try {
+        const findUser = await prisma.user.findMany({
+            where : {
+                firstname : {
+                    contains: username
                 }
-
-            ]
-
-    })
-     
+            },
+            select : {
+                id : true,
+                username: true,
+                password : true,
+                firstname: true,
+                lastname: true,
+                Account : true
+            }
+    
+         })
+         console.log(findUser)
+        res.status(200).json({
+                user : findUser.map((user)=>({
+                    username : user.username,
+                    password : user.password,
+                    firstname : user.firstname,
+                    lastname : user.lastname,
+                    id : user.id
+                })),
+    
+        });
+         
+     }catch(e) {
+        res.status(411).json({
+            msg : " can't able to get user"
+        })
+     }
 })
 
 
